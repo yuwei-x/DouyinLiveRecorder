@@ -37,6 +37,7 @@ from msg_push import (
 from ffmpeg_install import (
     check_ffmpeg, ffmpeg_path, current_env_path
 )
+from runtime_paths import configure_bundled_runtime, ensure_user_data_files, get_app_data_dir
 
 version = "v4.0.7"
 platforms = ("\n国内站点：抖音|快手|虎牙|斗鱼|YY|B站|小红书|bigo|blued|网易CC|千度热播|猫耳FM|Look|TwitCasting|百度|微博|"
@@ -65,7 +66,9 @@ not_record_list = []
 start_display_time = datetime.datetime.now()
 global_proxy = False
 recording_time_list = {}
-script_path = os.path.split(os.path.realpath(sys.argv[0]))[0]
+configure_bundled_runtime()
+ensure_user_data_files()
+script_path = str(get_app_data_dir())
 config_file = f'{script_path}/config/config.ini'
 url_config_file = f'{script_path}/config/URL_config.ini'
 backup_dir = f'{script_path}/backup_config'
@@ -77,14 +80,37 @@ file_update_lock = threading.Lock()
 os_type = os.name
 clear_command = "cls" if os_type == 'nt' else "clear"
 color_obj = utils.Color()
-os.environ['PATH'] = ffmpeg_path + os.pathsep + current_env_path
+os.environ['PATH'] = ffmpeg_path + os.pathsep + (current_env_path or '')
+active_ffmpeg_processes = set()
+active_process_lock = threading.Lock()
+
+
+def stop_recording_process(process: subprocess.Popen) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        if os.name == 'nt':
+            if process.stdin:
+                process.stdin.write(b'q')
+                process.stdin.close()
+        else:
+            process.send_signal(signal.SIGINT)
+    except Exception:
+        process.terminate()
 
 
 def signal_handler(_signal, _frame):
+    global exit_recording
+    exit_recording = True
+    with active_process_lock:
+        processes = list(active_ffmpeg_processes)
+    for process in processes:
+        stop_recording_process(process)
     sys.exit(0)
 
 
 signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
 
 
 def display_info() -> None:
@@ -423,6 +449,8 @@ def check_subprocess(record_name: str, record_url: str, ffmpeg_command: list, sa
     process = subprocess.Popen(
         ffmpeg_command, stdin=subprocess.PIPE, stderr=subprocess.STDOUT, startupinfo=get_startup_info(os_type)
     )
+    with active_process_lock:
+        active_ffmpeg_processes.add(process)
 
     subs_file_path = save_file_path.rsplit('.', maxsplit=1)[0]
     subs_thread_name = f'subs_{Path(subs_file_path).name}'
@@ -437,18 +465,16 @@ def check_subprocess(record_name: str, record_url: str, ffmpeg_command: list, sa
         if record_url in url_comments or exit_recording:
             color_obj.print_colored(f"[{record_name}]录制时已被注释,本条线程将会退出", color_obj.YELLOW)
             clear_record_info(record_name, record_url)
-            # process.terminate()
-            if os.name == 'nt':
-                if process.stdin:
-                    process.stdin.write(b'q')
-                    process.stdin.close()
-            else:
-                process.send_signal(signal.SIGINT)
+            stop_recording_process(process)
             process.wait()
+            with active_process_lock:
+                active_ffmpeg_processes.discard(process)
             return True
         time.sleep(1)
 
     return_code = process.returncode
+    with active_process_lock:
+        active_ffmpeg_processes.discard(process)
     stop_time = time.strftime('%Y-%m-%d %H:%M:%S')
     if return_code == 0:
         if converts_to_mp4 and save_type == 'TS':
@@ -1647,21 +1673,25 @@ def start_record(url_data: tuple, count_variable: int = -1) -> None:
 
 def backup_file(file_path: str, backup_dir_path: str, limit_counts: int = 6) -> None:
     try:
-        if not os.path.exists(backup_dir_path):
-            os.makedirs(backup_dir_path)
+        if not os.path.exists(file_path):
+            return
+
+        backup_path = Path(backup_dir_path)
+        backup_path.mkdir(parents=True, exist_ok=True)
 
         timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         backup_file_name = os.path.basename(file_path) + '_' + timestamp
-        backup_file_path = os.path.join(backup_dir_path, backup_file_name).replace("\\", "/")
+        backup_file_path = backup_path / backup_file_name
+        backup_file_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(file_path, backup_file_path)
 
-        files = os.listdir(backup_dir_path)
+        files = os.listdir(backup_path)
         _files = [f for f in files if f.startswith(os.path.basename(file_path))]
-        _files.sort(key=lambda x: os.path.getmtime(os.path.join(backup_dir_path, x)))
+        _files.sort(key=lambda x: os.path.getmtime(backup_path / x))
 
         while len(_files) > limit_counts:
             oldest_file = _files[0]
-            os.remove(os.path.join(backup_dir_path, oldest_file))
+            os.remove(backup_path / oldest_file)
             _files = _files[1:]
 
     except Exception as e:
@@ -1793,7 +1823,11 @@ while True:
                 ini_URL_content = file.read().strip()
 
         if not ini_URL_content.strip():
-            input_url = input('请输入要录制的主播直播间网址（尽量使用PC网页端的直播间地址）:\n')
+            try:
+                input_url = input('请输入要录制的主播直播间网址（尽量使用PC网页端的直播间地址）:\n')
+            except EOFError:
+                print("未读取到直播间地址输入，程序退出。")
+                sys.exit(0)
             with open(url_config_file, 'w', encoding=text_encoding) as file:
                 file.write(input_url)
     except OSError as err:

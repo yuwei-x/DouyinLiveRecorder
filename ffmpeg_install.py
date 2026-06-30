@@ -8,6 +8,7 @@ Copyright (c) 2024 by Hmily, All Rights Reserved.
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 import platform
@@ -16,11 +17,13 @@ from pathlib import Path
 import requests
 from tqdm import tqdm
 from src.logger import logger
+from runtime_paths import configure_bundled_runtime, get_bundled_ffmpeg_dir, get_executable_dir
 
+configure_bundled_runtime()
 current_platform = platform.system()
-execute_dir = os.path.split(os.path.realpath(sys.argv[0]))[0]
-current_env_path = os.environ.get('PATH')
-ffmpeg_path = os.path.join(execute_dir, 'ffmpeg')
+execute_dir = str(get_executable_dir())
+current_env_path = os.environ.get('PATH', '')
+ffmpeg_path = str(get_bundled_ffmpeg_dir() or Path(execute_dir) / 'ffmpeg')
 
 
 def unzip_file(zip_path: str | Path, extract_to: str | Path, delete: bool = True) -> None:
@@ -100,18 +103,23 @@ def install_ffmpeg_windows():
 def install_ffmpeg_mac():
     logger.warning("ffmpeg is not installed.")
     logger.debug("Installing the stable version of ffmpeg for macOS...")
+    brew = shutil.which("brew")
+    if not brew:
+        logger.error("Homebrew was not found. Please install ffmpeg manually, or use the packaged macOS app.")
+        return False
     try:
-        result = subprocess.run(["brew", "install", "ffmpeg"], capture_output=True)
+        result = subprocess.run([brew, "install", "ffmpeg"], capture_output=True)
         if result.returncode == 0:
             logger.debug('ffmpeg installation was successful. Restart for changes to take effect.')
             return True
         else:
-            logger.error("ffmpeg installation failed")
+            logger.error(result.stderr.decode('utf-8', errors='ignore').strip() or "ffmpeg installation failed")
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to install ffmpeg using Homebrew. {e}")
         logger.error("Please install ffmpeg manually or check your Homebrew installation.")
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
+    return False
 
 
 def install_ffmpeg_linux():

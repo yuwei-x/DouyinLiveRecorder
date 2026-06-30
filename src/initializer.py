@@ -7,6 +7,7 @@ Copyright (c) 2024 by Hmily, All Rights Reserved.
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import platform
@@ -17,10 +18,12 @@ import re
 import distro
 from tqdm import tqdm
 from .logger import logger
+from runtime_paths import configure_bundled_runtime, get_executable_dir
 
+configure_bundled_runtime()
 current_platform = platform.system()
-execute_dir = os.path.split(os.path.realpath(sys.argv[0]))[0]
-current_env_path = os.environ.get('PATH')
+execute_dir = str(get_executable_dir())
+current_env_path = os.environ.get('PATH', '')
 
 
 def unzip_file(zip_path: str | Path, extract_to: str | Path, delete: bool = True) -> None:
@@ -137,18 +140,23 @@ def install_nodejs_ubuntu():
 def install_nodejs_mac():
     logger.warning("Node.js is not installed.")
     logger.debug("Installing the latest version of Node.js for macOS...")
+    brew = shutil.which("brew")
+    if not brew:
+        logger.error("Homebrew was not found. Please install Node.js manually, or use the packaged macOS app.")
+        return False
     try:
-        result = subprocess.run(["brew", "install", "node"], capture_output=True)
+        result = subprocess.run([brew, "install", "node"], capture_output=True)
         if result.returncode == 0:
             logger.debug('Node.js installation was successful. Restart for changes to take effect.')
             return True
         else:
-            logger.error("Node.js installation failed")
+            logger.error(result.stderr.decode('utf-8', errors='ignore').strip() or "Node.js installation failed")
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to install Node.js using Homebrew. {e}")
         logger.error("Please install Node.js manually or check your Homebrew installation.")
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
+    return False
 
 
 def get_package_manager():

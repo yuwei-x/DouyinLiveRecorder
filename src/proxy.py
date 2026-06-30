@@ -1,5 +1,6 @@
 import os
 import sys
+from urllib.parse import urlparse
 from enum import Enum, auto
 from dataclasses import dataclass, field
 from .utils import logger
@@ -75,17 +76,20 @@ class ProxyDetector:
 
     @staticmethod
     def _get_proxy_info_linux() -> tuple[str, str]:
-        proxies = {
-            'http': os.getenv('http_proxy'),
-            'https': os.getenv('https_proxy'),
-            'ftp': os.getenv('ftp_proxy')
-        }
-        ip = port = ""
-        for proto, proxy in proxies.items():
+        proxies = (
+            os.getenv('http_proxy'),
+            os.getenv('https_proxy'),
+            os.getenv('HTTP_PROXY'),
+            os.getenv('HTTPS_PROXY'),
+            os.getenv('ftp_proxy'),
+            os.getenv('FTP_PROXY'),
+        )
+        for proxy in proxies:
             if proxy:
-                ip, port = proxy.split(':')
-                break
-        return ip, port
+                parsed = urlparse(proxy if '://' in proxy else f'http://{proxy}')
+                if parsed.hostname and parsed.port:
+                    return parsed.hostname, str(parsed.port)
+        return "", ""
 
     def _is_proxy_enabled_linux(self) -> bool:
         proxies = self._get_proxy_info_linux()

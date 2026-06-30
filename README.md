@@ -2,7 +2,7 @@
 
 ## 💡简介
 [![Python Version](https://img.shields.io/badge/python-3.11.6-blue.svg)](https://www.python.org/downloads/release/python-3116/)
-[![Supported Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-blue.svg)](https://github.com/ihmily/DouyinLiveRecorder)
+[![Supported Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS-blue.svg)](https://github.com/ihmily/DouyinLiveRecorder)
 [![Docker Pulls](https://img.shields.io/docker/pulls/ihmily/douyin-live-recorder?label=Docker%20Pulls&color=blue&logo=docker)](https://hub.docker.com/r/ihmily/douyin-live-recorder/tags)
 ![GitHub issues](https://img.shields.io/github/issues/ihmily/DouyinLiveRecorder.svg)
 [![Latest Release](https://img.shields.io/github/v/release/ihmily/DouyinLiveRecorder)](https://github.com/ihmily/DouyinLiveRecorder/releases/latest)
@@ -430,6 +430,23 @@ uv run main.py
 其中Linux系统请使用`python3 main.py` 运行。
 
 &emsp;
+
+## 🍎 macOS DMG 打包
+
+本 fork 增加了 macOS Apple Silicon 打包脚本，可生成内置 Python、Node.js、FFmpeg、FFprobe 的 DMG，不依赖 Homebrew。
+
+```bash
+./packaging/macos/build_dmg.sh
+```
+
+生成文件位于：
+
+```bash
+dist/DouyinLiveRecorder-macOS-arm64.dmg
+```
+
+该构建使用 ad-hoc/unsigned 签名。首次打开时，macOS 可能要求右键点击 `DouyinLiveRecorder.app` 后选择“打开”。
+
 ## 🐋容器运行
 
 在运行命令之前，请确保您的机器上安装了 [Docker](https://docs.docker.com/get-docker/) 和 [Docker Compose](https://docs.docker.com/compose/install/) 
