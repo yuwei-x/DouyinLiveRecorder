@@ -445,7 +445,7 @@ uv run main.py
 dist/DouyinLiveRecorder-macOS-arm64.dmg
 ```
 
-该构建使用 ad-hoc/unsigned 签名。首次打开时，macOS 可能要求右键点击 `DouyinLiveRecorder.app` 后选择“打开”。
+该构建使用 ad-hoc/unsigned 签名。下载 DMG 后请先双击 `Install DouyinLiveRecorder.command`，它会将 app 安装到 Applications、移除下载隔离属性并启动程序。不要直接从 DMG 中双击 `DouyinLiveRecorder.app`，否则 Gatekeeper 可能会提示“Apple 无法验证”。
 
 ## 🐋容器运行
 

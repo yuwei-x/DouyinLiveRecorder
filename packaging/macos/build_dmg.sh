@@ -204,15 +204,52 @@ open "$TARGET_CONFIG"
 OPENCONFIG
 chmod +x "$DMG_ROOT/Open Config.command"
 
+cat > "$DMG_ROOT/Install DouyinLiveRecorder.command" <<'INSTALLER'
+#!/bin/zsh
+set -e
+
+DMG_DIR="$(cd "$(dirname "$0")" && pwd)"
+SOURCE_APP="$DMG_DIR/DouyinLiveRecorder.app"
+TARGET_DIR="/Applications"
+TARGET_APP="$TARGET_DIR/DouyinLiveRecorder.app"
+
+install_app() {
+  local target_dir="$1"
+  local target_app="$target_dir/DouyinLiveRecorder.app"
+  mkdir -p "$target_dir"
+  rm -rf "$target_app"
+  COPYFILE_DISABLE=1 ditto --norsrc --noextattr "$SOURCE_APP" "$target_app"
+  xattr -cr "$target_app" 2>/dev/null || true
+  xattr -d com.apple.quarantine "$target_app" 2>/dev/null || true
+  xattr -d com.apple.FinderInfo "$target_app" 2>/dev/null || true
+  xattr -d 'com.apple.fileprovider.fpfs#P' "$target_app" 2>/dev/null || true
+  echo "$target_app"
+}
+
+if [[ ! -d "$SOURCE_APP" ]]; then
+  echo "Cannot find DouyinLiveRecorder.app next to this installer."
+  exit 1
+fi
+
+if ! TARGET_APP="$(install_app "$TARGET_DIR" 2>/dev/null)"; then
+  TARGET_DIR="$HOME/Applications"
+  TARGET_APP="$(install_app "$TARGET_DIR")"
+fi
+
+echo "Installed to: $TARGET_APP"
+open "$TARGET_APP"
+INSTALLER
+chmod +x "$DMG_ROOT/Install DouyinLiveRecorder.command"
+
 cat > "$DMG_ROOT/README-mac.txt" <<'README'
 DouyinLiveRecorder macOS arm64
 
-1. Drag DouyinLiveRecorder.app to Applications, or run it directly from this DMG.
-2. Double-click DouyinLiveRecorder.app. It opens Terminal and starts the recorder.
+1. Double-click "Install DouyinLiveRecorder.command" first.
+2. The installer copies DouyinLiveRecorder.app to Applications, removes download quarantine, and starts it.
 3. Config files live in:
    ~/Library/Application Support/DouyinLiveRecorder/config
 4. Double-click Open Config.command to open the config folder.
-5. Because this app is unsigned, macOS may require right-click > Open on first launch.
+5. Do not run DouyinLiveRecorder.app directly from the DMG. Unsigned apps launched from downloaded DMGs are blocked by Gatekeeper.
 
 This build bundles Python, Node.js, FFmpeg, and FFprobe. Homebrew is not required.
 README
